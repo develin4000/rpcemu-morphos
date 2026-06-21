@@ -139,6 +139,7 @@ typedef enum {
 struct Data {
 	int x;
 	int y;
+	BOOL showpointer;
 };
 
 	APTR app;
@@ -188,6 +189,26 @@ BOOL Init_Libs()
 ** and before layout takes place. We need to tell MUI the
 ** minimum, maximum and default size of our object.
 */
+
+SAVEDS ULONG mNew(struct IClass *cl, Object *obj, struct opSet *msg)
+{
+	struct Data *data;
+	obj = DoSuperNew(cl, obj,
+						InnerSpacing(0, 0),
+						MUIA_Frame,        MUIV_Frame_None,
+						MUIA_Background,   MUII_WindowBack,
+						MUIA_FillArea,     TRUE,
+						MUIA_DoubleBuffer, FALSE,
+						TAG_MORE,          msg->ops_AttrList);
+
+	if (!obj)
+		return(0);
+
+	data = (struct RenderData *)INST_DATA(cl, obj);
+
+	data->showpointer = TRUE;
+	return((ULONG)obj);
+}
 
 SAVEDS ULONG mAskMinMax(struct IClass *cl,Object *obj,struct MUIP_AskMinMax *msg)
 {
@@ -300,33 +321,43 @@ SAVEDS ULONG mHandleInput(struct IClass *cl,Object *obj,struct MUIP_HandleInput 
             case IDCMP_MOUSEMOVE:
             {
 
-                if (_isinobject(mx, my))
-						 SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_DOT, WM_ObtainEvents, TRUE, TAG_DONE);
-					 else
-						 SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_NORMAL, WM_ObtainEvents, TRUE, TAG_DONE);
+				   if (data->showpointer)
+					{
+						if (_isinobject(mx, my))
+						{
+							SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_DOT, WM_ObtainEvents, TRUE, TAG_DONE);
+						   data->showpointer = FALSE;
+						}
+						else
+						{
+							SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_NORMAL, WM_ObtainEvents, TRUE, TAG_DONE);
+						   data->showpointer = TRUE;
+						}
+					}
 
-                mouse_mouse_move(imsg->MouseX-_mleft(MyObj)/*win->BorderLeft*/, imsg->MouseY-_mtop(MyObj)/*win->BorderTop*/);
-                //printf("x: %d y: %d\n",imsg->MouseX,imsg->MouseY);
-
-                break;
+               mouse_mouse_move(imsg->MouseX-_mleft(MyObj)/*win->BorderLeft*/, imsg->MouseY-_mtop(MyObj)/*win->BorderTop*/);
+               //printf("x: %d y: %d\n",imsg->MouseX,imsg->MouseY);
+               break;
             }
             case IDCMP_MOUSEBUTTONS:
                 switch (imsg->Code)
                 {
-                case SELECTDOWN:
-                    mouse_mouse_press(1);
-                    break;
-                case SELECTUP:
-                    mouse_mouse_release(1);
-                    break;
-				case MIDDLEDOWN:
-                    mouse_mouse_press(4);
-                    break;
-                case MIDDLEUP:
-                    mouse_mouse_release(4);
-                    break;
-                default:
-                    break;
+                   case SELECTDOWN:
+                      mouse_mouse_press(1);
+                      break;
+                   case SELECTUP:
+                      mouse_mouse_release(1);
+                      break;
+						 case MENUDOWN:
+                   case MIDDLEDOWN:
+                      mouse_mouse_press(4);
+                      break;
+						 case MENUUP:
+                   case MIDDLEUP:
+                      mouse_mouse_release(4);
+                      break;
+                   default:
+                      break;
                 }
 
             default:
@@ -351,6 +382,7 @@ DISPATCHER(MyClass)
 {
 	switch (msg->MethodID)
 	{
+		case OM_NEW          : return(mNew        (cl,obj,(APTR)msg));
 		case MUIM_AskMinMax  : return(mAskMinMax  (cl,obj,(APTR)msg));
 		case MUIM_Draw       : return(mDraw       (cl,obj,(APTR)msg));
 		case MUIM_HandleInput: return(mHandleInput(cl,obj,(APTR)msg));
