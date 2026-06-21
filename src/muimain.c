@@ -128,11 +128,13 @@ uint64_t iomdtimer=2000;
 struct MsgPort *winport;
 volatile ULONG videonext;
 
+/*
 typedef enum {
 	DONT_KNOW = -1,
 	INSIDE_WINDOW,
 	OUTSIDE_WINDOW
 } POINTER_STATE;
+*/
 
 struct Data {
 	int x;
@@ -142,104 +144,21 @@ struct Data {
 	APTR app;
 // Some code borrowed from E-UAE (Develin) =)
 
-static APTR blank_pointer;
-
-/*
- * Initializes a pointer object containing a blank pointer image.
- * Used for hiding the mouse pointer
- */
-static void init_pointer (void)
-{
-	static struct BitMap bitmap;
-	static UWORD	 row[2] = {0, 0};
-
-	InitBitMap (&bitmap, 2, 16, 1);
-	bitmap.Planes[0] = (PLANEPTR) &row[0];
-	bitmap.Planes[1] = (PLANEPTR) &row[1];
-
-	blank_pointer = NewObject (NULL, POINTERCLASS,
-										POINTERA_BitMap,	(ULONG)&bitmap,
-										POINTERA_WordWidth,	1,
-									   TAG_DONE);
-
-	if (!blank_pointer)
-		printf ("Warning: Unable to allocate blank mouse pointer.\n");
-}
-
-/*
- * Free up blank pointer object
- */
-static void free_pointer (void)
-{
-	if (blank_pointer) {
-		DisposeObject (blank_pointer);
-		blank_pointer = NULL;
-	}
-}
-
-/*
- * Hide mouse pointer for window
- */
-static void hide_pointer (struct Window *w)
-{
-	SetWindowPointer (w, WA_Pointer, (ULONG)blank_pointer, TAG_DONE);
-}
-
-/*
- * Restore default mouse pointer for window
- */
-static void show_pointer (struct Window *w)
-{
-	SetWindowPointer (w, WA_Pointer, 0, TAG_DONE);
-}
-
-static POINTER_STATE pointer_state;
-
-static POINTER_STATE get_pointer_state (const struct Window *w, int mousex, int mousey)
-{
-	POINTER_STATE new_state = OUTSIDE_WINDOW;
-
-	/*
-	 * Is pointer within the bounds of the inner window?
-	 */
-	if ((mousex >= w->BorderLeft)
-		&& (mousey >= w->BorderTop)
-		&& (mousex < (w->Width - w->BorderRight))
-		&& (mousey < (w->Height - w->BorderBottom))) {
-		/*
-		 * Yes. Now check whetehr the window is obscured by
-		 * another window at the pointer position
-		 */
-		struct Screen *scr = w->WScreen;
-	struct Layer  *layer;
-
-	/* Find which layer the pointer is in */
-	LockLayerInfo (&scr->LayerInfo);
-	layer = WhichLayer (&scr->LayerInfo, scr->MouseX, scr->MouseY);
-	UnlockLayerInfo (&scr->LayerInfo);
-
-	/* Is this layer our window's layer? */
-	if (layer == w->WLayer) {
-		/*
-		 * Yes. Therefore, pointer is inside the window.
-		 */
-		new_state = INSIDE_WINDOW;
-	}
-		}
-		return new_state;
-}
 
 void Cleanup_Libs()
 {
+/*
 	if (LayersBase)
 	{
 		CloseLibrary (LayersBase);
 		LayersBase = NULL;
 	}
+*/
 }
 
 BOOL Init_Libs()
 {
+/*
    LayersBase = OpenLibrary ("layers.library", 0L);
 	if (!LayersBase)
 	{
@@ -250,6 +169,8 @@ BOOL Init_Libs()
 	{
       return 1;
 	}
+*/
+   return 1;
 }
 
 
@@ -283,11 +204,11 @@ SAVEDS ULONG mAskMinMax(struct IClass *cl,Object *obj,struct MUIP_AskMinMax *msg
 	*/
 
 	msg->MinMaxInfo->MinWidth  += 100;
-	msg->MinMaxInfo->DefWidth  += 800;
+	msg->MinMaxInfo->DefWidth  += 640;
 	msg->MinMaxInfo->MaxWidth  += 1920;
 
 	msg->MinMaxInfo->MinHeight += 40;
-	msg->MinMaxInfo->DefHeight += 600;
+	msg->MinMaxInfo->DefHeight += 480;
 	msg->MinMaxInfo->MaxHeight += 1080;
 
 	return(0);
@@ -378,18 +299,12 @@ SAVEDS ULONG mHandleInput(struct IClass *cl,Object *obj,struct MUIP_HandleInput 
             }
             case IDCMP_MOUSEMOVE:
             {
-              //  printf("mousE\n");
-/*
-				   POINTER_STATE new_state = get_pointer_state (win, mx, my);
-					if (new_state != pointer_state)
-					{
-					   pointer_state = new_state;
-						if (pointer_state == INSIDE_WINDOW)
-						   hide_pointer (win);
-						else
-                     show_pointer (win);
-                }
-*/
+
+                if (_isinobject(mx, my))
+						 SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_DOT, WM_ObtainEvents, TRUE, TAG_DONE);
+					 else
+						 SetWindowPointer(_window(obj), WA_PointerType, POINTERTYPE_NORMAL, WM_ObtainEvents, TRUE, TAG_DONE);
+
                 mouse_mouse_move(imsg->MouseX-_mleft(MyObj)/*win->BorderLeft*/, imsg->MouseY-_mtop(MyObj)/*win->BorderTop*/);
                 //printf("x: %d y: %d\n",imsg->MouseX,imsg->MouseY);
 
@@ -602,22 +517,24 @@ int main()
 			MUIA_Window_ID   , MAKE_ID('R','P','C','E'),
 			
 			WindowContents, VGroup,
+			   MUIA_InnerLeft,   0,
+				MUIA_InnerRight,  0,
+				MUIA_InnerTop,    0,
+				MUIA_InnerBottom, 0,
 
-				
 				Child,VSpace(2),
 				Child, HGroup,
-				MUIA_Weight,0,
-				Child, button=SimpleButton("\33cReset your RiscPC ! "),
+				   MUIA_Weight,0,
+				   Child, button=SimpleButton("\33cReset your RiscPC ! "),
 				End,
-				Child, MyObj = NewObject(mcc->mcc_Class,NULL,
-					TextFrame,
-					TAG_DONE),
+
+				Child, MyObj = NewObject(mcc->mcc_Class,NULL, NoFrame,
+												MUIA_InnerLeft, 0, MUIA_InnerRight, 0, MUIA_InnerTop, 0, MUIA_InnerBottom, 0,
+									         MUIA_Background, MUII_WindowBack, TAG_DONE),
 
 				End,
 				/*Child, VSpace(0),
 				Child, HGroup,*/
-				
-		
 
 			End,
 		End;
@@ -660,7 +577,7 @@ int main()
 	
 	running1=1;
 	
-    init_pointer ();
+    //init_pointer ();
     fdc_init();
     initvideo();
 
